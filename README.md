@@ -156,8 +156,10 @@ O seed cria dois usuários (`johndoe` e `janedoe`) e uma prediction para cada um
 o que permite demonstrar o controle de acesso por ownership.
 
 O banco é criado e populado **automaticamente** ao iniciar a API, pois o 
-`database.py` chama `init_and_seed_db()` na inicialização. Para criá-lo 
-manualmente, execute a partir do diretório `fastapi/`:
+`database.py` chama `init_and_seed_db()` na inicialização. O caminho do banco é 
+resolvido a partir da pasta do código, então ele sempre é criado em 
+`fastapi/database.db`, independentemente do diretório de onde a API ou os testes 
+são executados. Para criá-lo manualmente, execute:
 
 ```bash
 cd fastapi
@@ -173,8 +175,8 @@ realizadas pela API utilizam **SQLModel**, sem SQL raw.
 
 ### Execução
 
-A partir do diretório `fastapi/` (os imports da aplicação e o caminho do banco 
-dependem disso), inicie o servidor com um dos dois comandos:
+A partir do diretório `fastapi/` (os imports da aplicação dependem disso), 
+inicie o servidor com um dos dois comandos:
 
 ```bash
 python main.py
@@ -199,9 +201,9 @@ No Linux/macOS, use `python3 main.py` caso `python` não esteja disponível.
 | `POST` | `/auth/token` | Não | Autentica o usuário (form-urlencoded) e retorna o token JWT. Limitada a **10 requisições/minuto** por cliente |
 | `POST` | `/auth/register` | Não | Cadastra um novo usuário com `{"username", "password"}` |
 | `GET` | `/users` | Sim (admin) | Lista os usuários cadastrados |
-| `POST` | `/predict` | Sim (Bearer) | Recebe `{"text": "..."}`, salva a prediction com o usuário autenticado como proprietário e retorna `201` |
-| `GET` | `/predict` | Sim (Bearer) | Lista apenas as predictions do usuário autenticado |
-| `GET` | `/predict/{id}` | Sim (Bearer) | Retorna a prediction pelo ID somente se ela pertencer ao usuário autenticado (`403` caso pertença a outro usuário, `404` caso não exista) |
+| `POST` | `/predictions/predict` | Sim (Bearer) | Recebe `{"text": "..."}`, salva a prediction com o usuário autenticado como proprietário e retorna `201` |
+| `GET` | `/predictions` | Sim (Bearer) | Lista apenas as predictions do usuário autenticado |
+| `GET` | `/predictions/{id}` | Sim (Bearer) | Retorna a prediction pelo ID somente se ela pertencer ao usuário autenticado (`403` caso pertença a outro usuário, `404` caso não exista) |
 
 #### Autenticação
 
@@ -216,4 +218,44 @@ Password: `johndoe123`
 
 Username: `janedoe`
 Password: `janedoe123`
+
+## Testes - Instruções
+
+### Dependências
+
+O `pytest` já está incluído no `fastapi/requirements.txt`. Caso ainda não tenha 
+instalado as dependências da API, execute:
+
+```bash
+cd fastapi
+pip install -r requirements.txt
+```
+
+### Execução
+
+A partir da **raiz do projeto**, execute:
+
+```bash
+python -m pytest tests -v
+```
+
+O arquivo [tests/conftest.py](tests/conftest.py) adiciona o diretório `fastapi/` 
+ao `sys.path` e direciona a aplicação para um **banco temporário**, criado e 
+populado com o mesmo seed (`johndoe` e `janedoe`) a cada execução e removido ao 
+final. Assim, os testes sempre partem do mesmo estado e não alteram o 
+`fastapi/database.db` versionado.
+
+Os tokens JWT são gerados uma única vez por execução, para não consumir o 
+limite de 10 requisições/minuto do `/auth/token`.
+
+### Cenários cobertos
+
+Os testes estão em [tests/test_security.py](tests/test_security.py):
+
+| Teste | Cenário | Resultado esperado |
+|---|---|---|
+| `test_access_without_token` | Acesso a `GET /predictions` sem token JWT | `401 Unauthorized` |
+| `test_access_other_user_resource_bola` | `johndoe` cria uma prediction e `janedoe` tenta acessá-la pelo ID (BOLA) | `403 Forbidden` |
+| `test_reject_extra_fields_in_request_body` | Envio do campo extra `role` no body de `POST /predictions/predict` | `422 Unprocessable Entity` com erro do tipo `extra_forbidden` no campo `role` |
+| `test_rate_limit_on_auth_token` | 11 tentativas de login com senha errada em sequência (simulação de brute force) | `401` nas 10 primeiras e `429 Too Many Requests` na 11ª |
 

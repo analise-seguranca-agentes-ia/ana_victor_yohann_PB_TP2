@@ -2,10 +2,13 @@ import json
 import sqlite3
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
+
+DATABASE_PATH = Path(__file__).resolve().parent / "database.db"
 
 
 def init_and_seed_db():
-    conn = sqlite3.connect("database.db")
+    conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
 
     cursor.execute("PRAGMA foreign_keys = ON")
@@ -36,8 +39,10 @@ def init_and_seed_db():
     user_count = cursor.fetchone()[0]
 
     if user_count == 0:
-        admin_id = str(uuid.uuid4())
-        normal_id = str(uuid.uuid4())
+        # O SQLModel armazena UUIDs no SQLite como hex de 32 caracteres (sem hífens),
+        # então o seed precisa usar o mesmo formato para as consultas da API encontrarem os registros.
+        admin_id = uuid.uuid4().hex
+        normal_id = uuid.uuid4().hex
 
         now = datetime.now(UTC).isoformat()
         roles_admin = json.dumps(["default", "admin"])
@@ -81,7 +86,7 @@ def init_and_seed_db():
             VALUES (?, ?, ?, ?, ?)
         """,
             (
-                str(uuid.uuid4()),
+                uuid.uuid4().hex,
                 admin_id,
                 "Cancelar minha assinatura",
                 "cancel_subscription",
@@ -95,7 +100,7 @@ def init_and_seed_db():
             VALUES (?, ?, ?, ?, ?)
         """,
             (
-                str(uuid.uuid4()),
+                uuid.uuid4().hex,
                 normal_id,
                 "Estou tendo problemas para acessar a plataforma",
                 "Software bug",

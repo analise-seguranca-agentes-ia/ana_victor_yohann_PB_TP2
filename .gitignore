@@ -13,5 +13,5 @@ venv/
 # OS
 .DS_Store
 
-# Database
-.db
+# Database (o banco oficial fica em fastapi/database.db e deve ser versionado)
+/database.db

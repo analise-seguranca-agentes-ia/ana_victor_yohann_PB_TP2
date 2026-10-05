@@ -11,7 +11,7 @@ from sqlmodel import Session, select
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-prediction_router = APIRouter(prefix="/predict", tags=["prediction"])
+prediction_router = APIRouter(prefix="/predictions", tags=["prediction"])
 
 
 allow_create_prediction = RoleChecker(
@@ -30,7 +30,7 @@ user_intentions = [
 
 
 @prediction_router.post(
-    "",
+    "/predict",
     response_model=GetPredictionResponse,
     status_code=status.HTTP_201_CREATED,
 )

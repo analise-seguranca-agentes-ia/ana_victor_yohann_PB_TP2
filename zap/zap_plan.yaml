@@ -1,0 +1,77 @@
+# Plano de automação do OWASP ZAP para o scan passivo da API do TP2.
+#
+# Não há job de activeScan: o ZAP apenas analisa passivamente as requisições
+# e respostas geradas pelos jobs abaixo.
+#
+# - openapi: importa a especificação e requisita todas as rotas.
+# - requestor: requisições explícitas para a página /docs (única resposta HTML
+#   da API) e para as rotas protegidas, incluindo o acesso a uma prediction de
+#   outro usuário (403).
+#
+# O token JWT da janedoe é enviado em todas as requisições pelas variáveis de
+# ambiente do próprio ZAP (ZAP_AUTH_HEADER_VALUE e ZAP_AUTH_HEADER_SITE, ver
+# README). Assim as respostas 200/403 das rotas protegidas também são
+# analisadas, e não apenas os 401.
+#
+# Os IDs de prediction abaixo são os do seed em fastapi/database.db
+# (825c2c12... pertence à janedoe e 1782e213... ao johndoe).
+
+env:
+  contexts:
+    - name: "API TP2"
+      urls:
+        - "http://host.docker.internal:8000"
+  parameters:
+    failOnError: true
+    progressToStdout: true
+
+jobs:
+  - type: openapi
+    parameters:
+      apiUrl: "http://host.docker.internal:8000/openapi.json"
+      targetUrl: "http://host.docker.internal:8000"
+      context: "API TP2"
+
+  - type: requestor
+    requests:
+      - url: "http://host.docker.internal:8000/docs"
+        method: "GET"
+        responseCode: 200
+      - url: "http://host.docker.internal:8000/health"
+        method: "GET"
+        responseCode: 200
+      - url: "http://host.docker.internal:8000/predictions"
+        method: "GET"
+        responseCode: 200
+      - url: "http://host.docker.internal:8000/predictions/825c2c12-ce72-43a8-9e1a-e24c369da8a5"
+        method: "GET"
+        responseCode: 200
+      - url: "http://host.docker.internal:8000/predictions/1782e213-56fa-4830-9e36-549c246d0ec3"
+        method: "GET"
+        responseCode: 403
+      - url: "http://host.docker.internal:8000/predictions/predict"
+        method: "POST"
+        headers:
+          - "Content-Type: application/json"
+        data: "{\"text\": \"Nao consigo acessar minha conta\"}"
+        responseCode: 201
+
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 5
+
+  - type: report
+    parameters:
+      template: "traditional-html"
+      reportDir: "/zap/wrk"
+      reportFile: "zap_report"
+      reportTitle: "Scan passivo OWASP ZAP - API TP2"
+    risks: [info, low, medium, high]
+
+  - type: report
+    parameters:
+      template: "traditional-json"
+      reportDir: "/zap/wrk"
+      reportFile: "zap_report"
+      reportTitle: "Scan passivo OWASP ZAP - API TP2"
+    risks: [info, low, medium, high]

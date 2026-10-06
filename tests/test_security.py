@@ -1,10 +1,38 @@
+from datetime import timedelta
+
+import jwt
 import pytest
+from security.auth import ALGORITHM, SECRET_KEY, create_access_token
 
 from fastapi.testclient import TestClient
 
 
 def test_access_without_token(client: TestClient):
     response = client.get("/predictions")
+
+    assert response.status_code == 401
+
+
+def test_reject_token_for_unknown_user(client: TestClient):
+    # Token com assinatura válida, mas cujo "sub" não existe no banco.
+    token = create_access_token(
+        data={"sub": "usuario-inexistente"}, expires_delta=timedelta(minutes=5)
+    )
+
+    response = client.get(
+        "/predictions", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert response.status_code == 401
+
+
+def test_reject_token_without_exp(client: TestClient):
+    # Token de um usuário válido, mas sem a claim "exp" (nunca expiraria).
+    token = jwt.encode({"sub": "janedoe"}, SECRET_KEY, algorithm=ALGORITHM)
+
+    response = client.get(
+        "/predictions", headers={"Authorization": f"Bearer {token}"}
+    )
 
     assert response.status_code == 401
 

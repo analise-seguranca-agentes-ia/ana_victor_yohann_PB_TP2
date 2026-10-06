@@ -78,7 +78,13 @@ async def verify_access_token(
 ) -> TokenData:
 
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        # Tokens sem "sub" ou sem "exp" são rejeitados já na decodificação.
+        payload = jwt.decode(
+            token,
+            SECRET_KEY,
+            algorithms=[ALGORITHM],
+            options={"require": ["sub", "exp"]},
+        )
 
         username = payload.get("sub")
 
@@ -99,6 +105,10 @@ async def get_current_user(
     if not token_data.username:
         raise credentials_exception
 
+    # A assinatura válida não basta: o "sub" do token precisa corresponder a um
+    # usuário cadastrado no banco. Um token emitido para um usuário que não
+    # existe (ou que foi removido) é recusado antes de chegar às rotas.
+    # A permissão de cada rota é verificada em seguida pelo RoleChecker (rbac.py).
     user = get_user(token_data.username, session)
 
     if user is None:
